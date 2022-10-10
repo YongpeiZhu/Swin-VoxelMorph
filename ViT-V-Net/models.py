@@ -13,7 +13,7 @@ from torch.nn import Dropout, Softmax, Linear, Conv3d, LayerNorm
 from torch.nn.modules.utils import _pair, _triple
 import configs as configs
 from torch.distributions.normal import Normal
-
+from swinTFPN import SwinTransformer3DFPN
 logger = logging.getLogger(__name__)
 
 
@@ -129,14 +129,17 @@ class Embeddings(nn.Module):
                                        kernel_size=patch_size,
                                        stride=patch_size)
         self.position_embeddings = nn.Parameter(torch.zeros(1, n_patches, config.hidden_size))
+        print(self.position_embeddings.shape,'iiii')
 
         self.dropout = Dropout(config.transformer["dropout_rate"])
 
     def forward(self, x):
         x, features = self.hybrid_model(x)
         x = self.patch_embeddings(x)  # (B, hidden. n_patches^(1/2), n_patches^(1/2))
+        print(x.shape,'iiiiii')
         x = x.flatten(2)
-        x = x.transpose(-1, -2)  # (B, n_patches, hidden)
+        x = x.transpose(-1, -2)  # (B, n_patches,  hidden)
+        print(x.shape,'kkkk')
         embeddings = x + self.position_embeddings
         embeddings = self.dropout(embeddings)
         return embeddings, features
@@ -309,7 +312,9 @@ class SpatialTransformer(nn.Module):
         vectors = [torch.arange(0, s) for s in size]
         grids = torch.meshgrid(vectors)
         grid = torch.stack(grids)
+        print(grid.shape,'22222')
         grid = torch.unsqueeze(grid, 0)
+        print(grid.shape,'11111')
         grid = grid.type(torch.FloatTensor)
 
         # registering the grid as a buffer cleanly moves it to the GPU, but it also
@@ -320,6 +325,8 @@ class SpatialTransformer(nn.Module):
         self.register_buffer('grid', grid)
 
     def forward(self, src, flow):
+        print(self.grid.shape,'ppppp1')
+        print(flow.shape,'qqqqq1q')
         # new locations
         new_locs = self.grid + flow
         shape = flow.shape[2:]
@@ -402,29 +409,68 @@ class RegistrationHead(nn.Sequential):
         conv3d.bias = nn.Parameter(torch.zeros(conv3d.bias.shape))
         super().__init__(conv3d)
 
+enc_nf = [16, 32, 32, 32]
+dec_nf = [32, 32, 32, 32, 32, 16, 16]
 class ViTVNet(nn.Module):
-    def __init__(self, config, img_size=(64, 256, 256), int_steps=7, vis=False):
+    def __init__(self, config, img_size=(160, 160, 160), int_steps=7, zero_head=False, vis=False):
         super(ViTVNet, self).__init__()
-        self.transformer = Transformer(config, img_size, vis)
-        self.decoder = DecoderCup(config, img_size)
-        self.reg_head = RegistrationHead(
-            in_channels=config.decoder_channels[-1],
-            out_channels=config['n_dims'],
-            kernel_size=3,
-        )
+        self.zero_head = zero_head
+        # self.transformer = Transformer(config, img_size, vis)
+        # self.decoder = DecoderCup(config, img_size)
+        # self.reg_head = RegistrationHead(
+        #     in_channels=config.decoder_channels[-1],
+        #     out_channels=config['n_dims'],
+        #     kernel_size=3,
+        # )
+        self.swin_unet = SwinTransformer3DFPN(
+            pretrained=None,
+            pretrained2d=False)
+        self.swin_unet = VxmDense(
+        inshape=(160, 160, 160),
+        nb_unet_features=[enc_nf, dec_nf],
+        bidir=True,
+        int_steps=7,
+        int_downsize=2
+    )
+        # self.swin_unet = SwinTransformerSys(224,
+        #                         patch_size=4,
+        #                         in_chans=160,
+        #                         num_classes=3,
+        #                         embed_dim=96,
+        #                         depths=[2, 2, 6, 2],
+        #                         num_heads=[3, 6, 12, 24],
+        #                         window_size=1,
+        #                         mlp_ratio=4.,
+        #                         qkv_bias=True,
+        #                         qk_scale=None,
+        #                         drop_rate=0.0,
+        #                         drop_path_rate=0.1,
+        #                         ape=False,
+        #                         patch_norm=True,
+        #                         use_checkpoint=False)
         self.spatial_trans = SpatialTransformer(img_size)
         self.config = config
         #self.integrate = VecInt(img_size, int_steps)
     def forward(self, x):
 
-        source = x[:,0:1,:,:]
+        source1 = x[:,0:1,:,:]
+        source2 = x[:,1:2,:,:]
+        print(source1.shape,'pp1pp')
+        print(x.size()[1],'0000')
+        # if x.size()[1] == 1:
+        #     x = x.repeat(1,3,1,1)
+        print(x.shape,'pp11pp')
+        flow1,flow2 = self.swin_unet(x)
+        print(flow1.shape,'0000')
+        print(flow2.shape,'0000')
 
-        x, attn_weights, features = self.transformer(x)  # (B, n_patch, hidden)
-        x = self.decoder(x, features)
-        flow = self.reg_head(x)
+        # x, attn_weights, features = self.transformer(x)  # (B, n_patch, hidden)
+        # x = self.decoder(x, features)
+        # flow = self.reg_head(x)
         #flow = self.integrate(flow)
-        out = self.spatial_trans(source, flow)
-        return out, flow
+        out1 = self.spatial_trans(source1, flow1)
+        out2 = self.spatial_trans(source2, flow2)
+        return out1, out2, flow1, flow2
 
 class VecInt(nn.Module):
     """

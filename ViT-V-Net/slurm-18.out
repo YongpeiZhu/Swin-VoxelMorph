@@ -1,0 +1,14 @@
+Number of GPU: 0
+Traceback (most recent call last):
+  File "train.py", line 208, in <module>
+    torch.cuda.set_device(GPU_iden)
+  File "/home/cloudam/.conda/envs/SYM/lib/python3.7/site-packages/torch/cuda/__init__.py", line 292, in set_device
+    torch._C._cuda_setDevice(device)
+  File "/home/cloudam/.conda/envs/SYM/lib/python3.7/site-packages/torch/cuda/__init__.py", line 196, in _lazy_init
+    _check_driver()
+  File "/home/cloudam/.conda/envs/SYM/lib/python3.7/site-packages/torch/cuda/__init__.py", line 101, in _check_driver
+    http://www.nvidia.com/Download/index.aspx""")
+AssertionError: 
+Found no NVIDIA driver on your system. Please check that you
+have an NVIDIA GPU and installed a driver from
+http://www.nvidia.com/Download/index.aspx

@@ -1,0 +1,17 @@
+Traceback (most recent call last):
+  File "train.py", line 212, in <module>
+    main()
+  File "train.py", line 48, in main
+    reg_model = utils.register_model((160, 192, 224), 'nearest')
+  File "/home/cloudam/data/ViT-V-Net_for_3D_Image_Registration_Pytorch/ViT-V-Net/utils.py", line 108, in __init__
+    self.spatial_trans = SpatialTransformer(img_size, mode)
+  File "/home/cloudam/data/ViT-V-Net_for_3D_Image_Registration_Pytorch/ViT-V-Net/utils.py", line 76, in __init__
+    grid = grid.type(torch.FloatTensor).cuda()
+  File "/home/cloudam/.conda/envs/SYM/lib/python3.7/site-packages/torch/cuda/__init__.py", line 196, in _lazy_init
+    _check_driver()
+  File "/home/cloudam/.conda/envs/SYM/lib/python3.7/site-packages/torch/cuda/__init__.py", line 101, in _check_driver
+    http://www.nvidia.com/Download/index.aspx""")
+AssertionError: 
+Found no NVIDIA driver on your system. Please check that you
+have an NVIDIA GPU and installed a driver from
+http://www.nvidia.com/Download/index.aspx

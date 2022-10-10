@@ -11,7 +11,7 @@ import torch.nn as nn
 import matplotlib.pyplot as plt
 from models import CONFIGS as CONFIGS_ViT_seg
 from natsort import natsorted
-
+from Functions import generate_grid, Dataset_epoch_crop, Predict_dataset_crop
 class AverageMeter(object):
     """Computes and stores the average and current value"""
     def __init__(self):
@@ -33,18 +33,21 @@ def MSE_torch(x, y):
     return torch.mean((x - y) ** 2)
 
 def main():
-    batch_size = 2
-    train_dir = 'D:/DATA/JHUBrain/Train/'
-    val_dir = 'D:/DATA/JHUBrain/Val/'
+    batch_size = 1
+    # train_dir = 'D:/DATA/JHUBrain/Train/'
+    # val_dir = 'D:/DATA/JHUBrain/Val/'
+    datapath = './data/OASIS'
+    train_dir = sorted(glob.glob(datapath + '/OASIS_OAS1_*_MR1/aligned_norm.nii.gz'))[0:255]
+    val_dir = sorted(glob.glob(datapath + '/OASIS_OAS1_*_MR1/aligned_norm.nii.gz'))[255:261]
     save_dir = 'ViTVNet_reg0.02_mse_diff/'
     lr = 0.0001
     epoch_start = 0
     max_epoch = 500
     cont_training = False
     config_vit = CONFIGS_ViT_seg['ViT-V-Net']
-    reg_model = utils.register_model((160, 192, 224), 'nearest')
+    reg_model = utils.register_model((160, 160, 160), 'nearest')
     reg_model.cuda()
-    model = models.ViTVNet(config_vit, img_size=(160, 192, 224))
+    model = models.ViTVNet(config_vit, img_size=(160, 160, 160))
     if cont_training:
         epoch_start = 335
         model_dir = 'experiments/'+save_dir
@@ -53,6 +56,7 @@ def main():
         model.load_state_dict(best_model)
     else:
         updated_lr = lr
+    model = nn.DataParallel(model,[0,1,2,3])
     model.cuda()
     train_composed = transforms.Compose([trans.RandomFlip(0),
                                          trans.NumpyType((np.float32, np.float32)),
@@ -62,10 +66,15 @@ def main():
                                        trans.NumpyType((np.float32, np.int16)),
                                         ])
 
-    train_set = datasets.JHUBrainDataset(glob.glob(train_dir + '*.pkl'), transforms=train_composed)
-    val_set = datasets.JHUBrainInferDataset(glob.glob(val_dir + '*.pkl'), transforms=val_composed)
-    train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
-    val_loader = DataLoader(val_set, batch_size=1, shuffle=False, num_workers=4, pin_memory=True, drop_last=True)
+    train_loader = DataLoader(Dataset_epoch_crop(train_dir, norm=True), batch_size=batch_size,
+                                         shuffle=True, num_workers=4, pin_memory=True)
+    # val_loader = DataLoader(Predict_dataset_crop(fixed_img, imgs, fixed_label, labels, norm=True),
+                                                #   batch_size=1,
+                                                #   shuffle=False, num_workers=2)
+    # train_set = datasets.JHUBrainDataset(glob.glob(train_dir + '*.pkl'), transforms=train_composed)
+    # val_set = datasets.JHUBrainInferDataset(glob.glob(val_dir + '*.pkl'), transforms=val_composed)
+    # train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
+    val_loader = DataLoader(Dataset_epoch_crop(val_dir, norm=True), batch_size=1, shuffle=False, num_workers=4, pin_memory=True, drop_last=True)
 
     optimizer = optim.Adam(model.parameters(), lr=updated_lr, weight_decay=0, amsgrad=True)
     criterion = nn.MSELoss()
@@ -88,6 +97,7 @@ def main():
             model.train()
             adjust_learning_rate(optimizer, epoch, max_epoch, lr)
             data = [t.cuda() for t in data]
+            # print(data.shape,'ooooo')
             x = data[0]
             y = data[1]
             x_in = torch.cat((x,y), dim=1)
@@ -196,8 +206,10 @@ if __name__ == '__main__':
     print('Number of GPU: ' + str(GPU_num))
     for GPU_idx in range(GPU_num):
         GPU_name = torch.cuda.get_device_name(GPU_idx)
-        print('     GPU #' + str(GPU_idx) + ': ' + GPU_name)
+        print('GPU #' + str(GPU_idx) + ': ' + GPU_name)
     torch.cuda.set_device(GPU_iden)
+    # GPU_avai = torch.cuda.is_available()
+    # os.environ['CUDA_VISIBLE_DEVICES'] = '1,2,3'
     GPU_avai = torch.cuda.is_available()
     print('Currently using: ' + torch.cuda.get_device_name(GPU_iden))
     print('If the GPU is available? ' + str(GPU_avai))

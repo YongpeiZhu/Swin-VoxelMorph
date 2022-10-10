@@ -96,11 +96,11 @@ def main():
             x_def, flow = model(x_in)
             def_out = reg_model([x_seg.cuda().float(), flow.cuda()])
             tar = y.detach().cpu().numpy()[0, 0, :, :, :]
-            #jac_det = utils.jacobian_determinant(flow.detach().cpu().numpy()[0, :, :, :, :])
+            jac_det = utils.jacobian_determinant(flow.detach().cpu().numpy()[0, :, :, :, :])
             line = utils.dice_val_substruct(def_out.long(), y_seg.long(), stdy_idx)
             line = line #+','+str(np.sum(jac_det <= 0)/np.prod(tar.shape))
             csv_writter(line, 'experiments/' + model_folder[:-1])
-            #eval_det.update(np.sum(jac_det <= 0) / np.prod(tar.shape), x.size(0))
+            eval_det.update(np.sum(jac_det <= 0) / np.prod(tar.shape), x.size(0))
 
             dsc_trans = utils.dice_val(def_out.long(), y_seg.long(), 46)
             dsc_raw = utils.dice_val(x_seg.long(), y_seg.long(), 46)

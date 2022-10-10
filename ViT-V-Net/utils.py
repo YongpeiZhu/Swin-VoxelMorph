@@ -103,7 +103,7 @@ class SpatialTransformer(nn.Module):
         return F.grid_sample(src, new_locs, align_corners=True, mode=self.mode)
 
 class register_model(nn.Module):
-    def __init__(self, img_size=(64, 256, 256), mode='bilinear'):
+    def __init__(self, img_size=(160, 192, 224), mode='bilinear'):
         super(register_model, self).__init__()
         self.spatial_trans = SpatialTransformer(img_size, mode)
 
